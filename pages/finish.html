@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="UTF-8">
+    <title>GameTicTacToe</title>
+    <style>
+        div {
+            margin-left: auto;
+            margin-right: auto;
+            padding: 10% 40% 10%;
+        }
+        .new{
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 15px 32px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 2% 15%;
+            cursor: pointer;
+        }
+        .button{
+            background-color: #4c93af;
+            color: white;
+            text-align: center;
+            padding: 15px 32px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 2% 15%;
+            cursor: pointer;
+        }
+    </style>
+
+</head>
+<body>
+<div>
+    <h1>{{ .Result }}</h1>
+    <form method="POST" action="/new_game">
+        <input class="new" type="submit" value="again"/>
+    </form>
+    <form method="POST" action="/">
+        <input class="button" type="submit" value="menu"/>
+    </form>
+</div>
+</body>
+</html>

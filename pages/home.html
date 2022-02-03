@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>GameTicTacToe</title>
+    <style>
+        div {
+            margin-left: auto;
+            margin-right: auto;
+            padding: 10% 40% 10%;
+        }
+        .new{
+            background-color: #4CAF50;
+            color: white;
+            text-align: center;
+            padding: 15px 32px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 2% 30%;
+            cursor: pointer;
+        }
+        .button{
+            background-color: #4c93af;
+            color: white;
+            text-align: center;
+            padding: 15px 32px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <h1>Welcome to the game!</h1>
+    <h4>1)Press button start if you want start a new game.</h4>
+    <h4>2)Write a gameId to form and press connect if you want to connect to game.</h4>
+    <h4>3)In game you must choose the number of cell, write to form and press button Do.</h4>
+    <form method="POST" action="/new_game">
+        <input class="new" type="submit" value="new_game" />
+    </form>
+    <form method="POST" action="/connect">
+        <label>GameId</label><input name="gameId" type="number" value="" />
+        <input class="button" type="submit" value="connect" />
+    </form>
+</div>
+</body>
+</html>
