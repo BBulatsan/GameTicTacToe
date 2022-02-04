@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -12,9 +13,9 @@ import (
 //CREATE TABLE IF NOT EXISTS moves (game_id INTEGER, map_of_moves json, who_move message_text, FOREIGN KEY (game_id)  REFERENCES games (id) ON DELETE CASCADE);
 //CREATE TABLE IF NOT EXISTS users ( id  integer constraint user_pk primary key, name text );
 const (
-	newGame  = "newGame"
-	running  = "running"
-	finished = "finished"
+	NewGame  = "newGame"
+	Running  = "running"
+	Finished = "finished"
 )
 
 type games struct {
@@ -61,7 +62,7 @@ func (d *DbConn) InitDb() {
 	d.conn = db
 }
 
-func (d *DbConn) CreateNewGame() (*GameData, error) {
+func (d *DbConn) CreateNewGame(ck string) (*GameData, error) {
 	var gameId int
 	moveMap := &GameData{
 		Who:   "X",
@@ -75,8 +76,8 @@ func (d *DbConn) CreateNewGame() (*GameData, error) {
 		Eight: "8",
 		Nine:  "9",
 	}
-	statement := "INSERT INTO games (status, count_players) VALUES ($1, $2);"
-	res, err := d.conn.Exec(statement, newGame, 1)
+	statement := "INSERT INTO games (status, count_players, player_x_id) VALUES ($1, $2, $3);"
+	res, err := d.conn.Exec(statement, NewGame, 1, ck)
 	if err != nil {
 		return moveMap, err
 	}
@@ -95,6 +96,26 @@ func (d *DbConn) CreateNewGame() (*GameData, error) {
 	}
 
 	return moveMap, nil
+}
+
+func (d *DbConn) RefreshGameData(gameId string) (*GameData, error) {
+	gameData := &GameData{}
+	var moveMap string
+	rows, err := d.conn.Query(fmt.Sprintf("SELECT game_data FROM moves WHERE game_id=%s", gameId))
+	if err != nil {
+		return gameData, err
+	}
+	defer rows.Close()
+	rows.Next()
+	err = rows.Scan(&moveMap)
+	if err != nil {
+		return gameData, err
+	}
+	err = json.Unmarshal([]byte(moveMap), gameData)
+	if err != nil {
+		return gameData, err
+	}
+	return gameData, nil
 }
 
 func (d *DbConn) MakeMove(move string, gameId string) (*GameData, int, error) {
@@ -153,9 +174,9 @@ func (d *DbConn) getGameData(gameId string) (string, int, error) {
 	return move.GameData, move.CountMove, nil
 }
 
-func (d *DbConn) SetFinish(gameId string) error {
+func (d *DbConn) SetGameStatus(gameId string, status string) error {
 	statement := "UPDATE games SET status=$1 WHERE id=$2;"
-	_, err := d.conn.Exec(statement, finished, gameId)
+	_, err := d.conn.Exec(statement, status, gameId)
 	if err != nil {
 		return err
 	}
@@ -190,6 +211,62 @@ func (d *DbConn) AddName(ck string, name string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *DbConn) CheckGame(gameId string) bool {
+	var count string
+	rows, err := d.conn.Query(fmt.Sprintf("SELECT Count(*) FROM games WHERE id=%s", gameId))
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	rows.Next()
+	err = rows.Scan(&count)
+	i, _ := strconv.Atoi(count)
+	if i == 1 {
+		return true
+	}
+	return false
+}
+
+func (d *DbConn) SetPlayerId(userId string, gameId string) error {
+	statement := "UPDATE games SET player_o_id=$1 WHERE id=$2;"
+	_, err := d.conn.Exec(statement, userId, gameId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *DbConn) SetGameCount(gameId string, symbol string) error {
+	c, err := d.GetCount(gameId)
+	if err != nil {
+		return err
+	}
+	if symbol == "-" {
+		c--
+	} else {
+		c++
+	}
+	statement := "UPDATE games SET count_players=$1 WHERE id=$2;"
+	_, err = d.conn.Exec(statement, c, gameId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *DbConn) GetCount(gameId string) (int, error) {
+	var count string
+	rows, err := d.conn.Query(fmt.Sprintf("SELECT count_players FROM games WHERE id=%s", gameId))
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	rows.Next()
+	err = rows.Scan(&count)
+	c, _ := strconv.Atoi(count)
+	return c, nil
 }
 
 func executeMove(gameData *GameData, move string, symbol string) (*GameData, error) {

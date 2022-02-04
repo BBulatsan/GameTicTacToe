@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
+	"time"
 
 	"GameTicTacToe/dbs"
 	"GameTicTacToe/game"
@@ -20,8 +21,10 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	id, er := r.Cookie("UserId")
 	if er != nil {
 		ck := &http.Cookie{
-			Name:  "UserId",
-			Value: game.GenUsedCk(),
+			Name:    "UserId",
+			Value:   game.GenUsedCk(),
+			Expires: time.Now(),
+			MaxAge:  9000,
 		}
 		http.SetCookie(w, ck)
 		t, _ := template.ParseFiles("pages/registration.html")
@@ -58,35 +61,62 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 func StartHandler(w http.ResponseWriter, r *http.Request) {
 	conn := dbs.DbConn{}
 	conn.InitDb()
-	gameData, err := conn.CreateNewGame()
+	gameData := &dbs.GameData{}
+	gi, err := r.Cookie("GameId")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+		id, _ := r.Cookie("UserId")
+		gameData, err = conn.CreateNewGame(id.Value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	ck := &http.Cookie{
-		Name:  "GameId",
-		Value: strconv.Itoa(gameData.GameId),
+		ck := &http.Cookie{
+			Name:  "GameId",
+			Value: strconv.Itoa(gameData.GameId),
+		}
+		http.SetCookie(w, ck)
+		//wait to second player
+	} else {
+		gameData, _ = conn.RefreshGameData(gi.Value)
 	}
-	http.SetCookie(w, ck)
-
 	t, _ := template.ParseFiles("pages/game.html")
 	t.Execute(w, gameData)
 }
 
 func ConnectHandler(w http.ResponseWriter, r *http.Request) {
+	conn := dbs.DbConn{}
+	conn.InitDb()
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	gameId := r.FormValue("gameId")
-	ck := &http.Cookie{
-		Name:  "GameId",
-		Value: gameId,
+	count, _ := conn.GetCount(gameId)
+	if conn.CheckGame(gameId) && count < 2 {
+		ck := &http.Cookie{
+			Name:  "GameId",
+			Value: gameId,
+		}
+		http.SetCookie(w, ck)
+		id, _ := r.Cookie("UserId")
+		err := conn.SetPlayerId(id.Value, gameId)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		conn.SetGameCount(gameId, "+")
+		conn.SetGameStatus(gameId, dbs.Running)
+		gameData, _ := conn.RefreshGameData(gameId)
+		t, _ := template.ParseFiles("pages/game.html")
+		t.Execute(w, gameData)
+	} else {
+		id, _ := r.Cookie("UserId")
+		name, _ := conn.GetUserName(id.Value)
+		res := result{Result: name}
+		t, _ := template.ParseFiles("pages/home.html")
+		t.Execute(w, res)
 	}
-	http.SetCookie(w, ck)
-
-	fmt.Fprintf(w, "Id = %s\n", gameId)
 }
 
 func GameHandler(w http.ResponseWriter, r *http.Request) {
@@ -116,17 +146,26 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 		res := result{
 			Result: fmt.Sprintf("Winer is %s", win),
 		}
-
+		ck := &http.Cookie{
+			Name:   "GameId",
+			MaxAge: -1,
+		}
+		http.SetCookie(w, ck)
 		t, _ := template.ParseFiles("pages/finish.html")
 		t.Execute(w, res)
-		conn.SetFinish(gameId.Value)
+		conn.SetGameStatus(gameId.Value, dbs.Finished)
 	} else if count >= 10 {
 		res := result{
 			Result: "Nobody win!",
 		}
+		ck := &http.Cookie{
+			Name:   "GameId",
+			MaxAge: -1,
+		}
+		http.SetCookie(w, ck)
 		t, _ := template.ParseFiles("pages/finish.html")
 		t.Execute(w, res)
-		conn.SetFinish(gameId.Value)
+		conn.SetGameStatus(gameId.Value, dbs.Finished)
 	} else {
 		t, _ := template.ParseFiles("pages/game.html")
 		t.Execute(w, gameData)
