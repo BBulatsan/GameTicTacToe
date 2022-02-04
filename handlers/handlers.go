@@ -15,8 +15,44 @@ type result struct {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	t, _ := template.ParseFiles("pages/home.html")
-	t.Execute(w, nil)
+	conn := dbs.DbConn{}
+	conn.InitDb()
+	id, er := r.Cookie("UserId")
+	if er != nil {
+		ck := &http.Cookie{
+			Name:  "UserId",
+			Value: game.GenUsedCk(),
+		}
+		http.SetCookie(w, ck)
+		t, _ := template.ParseFiles("pages/registration.html")
+		t.Execute(w, nil)
+		_, err := conn.CreateUser(ck.Value)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+	} else {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		name := r.FormValue("name")
+		if name != "" {
+			err := conn.AddName(id.Value, name)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		if name == "" {
+			name, _ = conn.GetUserName(id.Value)
+		}
+		res := result{Result: name}
+		t, _ := template.ParseFiles("pages/home.html")
+		t.Execute(w, res)
+	}
 }
 
 func StartHandler(w http.ResponseWriter, r *http.Request) {

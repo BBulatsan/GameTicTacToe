@@ -12,7 +12,7 @@ import (
 //CREATE TABLE IF NOT EXISTS moves (game_id INTEGER, map_of_moves json, who_move message_text, FOREIGN KEY (game_id)  REFERENCES games (id) ON DELETE CASCADE);
 //CREATE TABLE IF NOT EXISTS users ( id  integer constraint user_pk primary key, name text );
 const (
-	new      = "new"
+	newGame  = "newGame"
 	running  = "running"
 	finished = "finished"
 )
@@ -27,6 +27,12 @@ type moves struct {
 	GameId    int
 	GameData  string
 	CountMove int
+}
+
+type users struct {
+	id   int
+	name string
+	ck   string
 }
 
 type GameData struct {
@@ -70,11 +76,11 @@ func (d *DbConn) CreateNewGame() (*GameData, error) {
 		Nine:  "9",
 	}
 	statement := "INSERT INTO games (status, count_players) VALUES ($1, $2);"
-	res, err := d.conn.Exec(statement, new, 1)
+	res, err := d.conn.Exec(statement, newGame, 1)
 	if err != nil {
 		return moveMap, err
 	}
-	id, err := res.LastInsertId()
+	id, _ := res.LastInsertId()
 	gameId = int(id)
 	moveMap.GameId = gameId
 
@@ -102,13 +108,13 @@ func (d *DbConn) MakeMove(move string, gameId string) (*GameData, int, error) {
 		return gameData, count, err
 	}
 	if gameData.Who == "X" {
-		gameData, err = executeGame(gameData, move, "X")
+		gameData, err = executeMove(gameData, move, "X")
 		if err != nil {
 			return gameData, count, nil
 		}
 		gameData.Who = "O"
 	} else {
-		gameData, err = executeGame(gameData, move, "O")
+		gameData, err = executeMove(gameData, move, "O")
 		if err != nil {
 			return gameData, count, nil
 		}
@@ -156,7 +162,37 @@ func (d *DbConn) SetFinish(gameId string) error {
 	return nil
 }
 
-func executeGame(gameData *GameData, move string, symbol string) (*GameData, error) {
+func (d *DbConn) CreateUser(ck string) (int, error) {
+	statement := "INSERT INTO users (ck) VALUES ($1);"
+	res, err := d.conn.Exec(statement, ck)
+	id, _ := res.LastInsertId()
+	if err != nil {
+		return int(id), err
+	}
+	return int(id), nil
+}
+
+func (d *DbConn) GetUserName(ck string) (string, error) {
+	user := users{}
+	rows, err := d.conn.Query(fmt.Sprintf("SELECT name FROM users WHERE ck=%s", ck))
+	if err != nil {
+		return user.name, err
+	}
+	defer rows.Close()
+	rows.Next()
+	err = rows.Scan(&user.name)
+	return user.name, nil
+}
+func (d *DbConn) AddName(ck string, name string) error {
+	statement := "UPDATE users SET name=$1 WHERE ck=$2;"
+	_, err := d.conn.Exec(statement, name, ck)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func executeMove(gameData *GameData, move string, symbol string) (*GameData, error) {
 	if gameData.One == move {
 		gameData.One = symbol
 		return gameData, nil

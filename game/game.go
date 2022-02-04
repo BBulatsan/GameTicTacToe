@@ -1,6 +1,10 @@
 package game
 
 import (
+	"math/rand"
+	"strconv"
+	"time"
+
 	"GameTicTacToe/dbs"
 )
 
@@ -34,4 +38,9 @@ func CheckWin(data *dbs.GameData) (bool, string, error) {
 	}
 
 	return false, "", nil
+}
+
+func GenUsedCk() string {
+	rand.Seed(time.Now().UnixNano())
+	return strconv.Itoa(rand.Int())
 }
