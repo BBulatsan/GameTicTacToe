@@ -8,8 +8,9 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-//CREATE TABLE IF NOT EXISTS games (id INTEGER PRIMARY KEY, status message_text, count_players SMALLINT);
+//CREATE TABLE IF NOT EXISTS games (id INTEGER PRIMARY KEY, status message_text, count_players SMALLINT, player_x_id INTEGER, player_o_id INTEGER);
 //CREATE TABLE IF NOT EXISTS moves (game_id INTEGER, map_of_moves json, who_move message_text, FOREIGN KEY (game_id)  REFERENCES games (id) ON DELETE CASCADE);
+//CREATE TABLE IF NOT EXISTS users ( id  integer constraint user_pk primary key, name text );
 const (
 	new      = "new"
 	running  = "running"
@@ -69,7 +70,7 @@ func (d *DbConn) CreateNewGame() (*GameData, error) {
 		Nine:  "9",
 	}
 	statement := "INSERT INTO games (status, count_players) VALUES ($1, $2);"
-	res, err := d.conn.Exec(statement, new, 0)
+	res, err := d.conn.Exec(statement, new, 1)
 	if err != nil {
 		return moveMap, err
 	}
@@ -144,6 +145,15 @@ func (d *DbConn) getGameData(gameId string) (string, int, error) {
 	}
 
 	return move.GameData, move.CountMove, nil
+}
+
+func (d *DbConn) SetFinish(gameId string) error {
+	statement := "UPDATE games SET status=$1 WHERE id=$2;"
+	_, err := d.conn.Exec(statement, finished, gameId)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func executeGame(gameData *GameData, move string, symbol string) (*GameData, error) {

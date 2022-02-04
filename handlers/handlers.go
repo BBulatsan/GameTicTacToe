@@ -40,7 +40,7 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 
 func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		fmt.Fprintf(w, "ParseForm() err: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	gameId := r.FormValue("gameId")
@@ -57,7 +57,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 	conn := dbs.DbConn{}
 	conn.InitDb()
 	if err := r.ParseForm(); err != nil {
-		fmt.Fprintf(w, "ParseForm() err: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	numOfCell := r.FormValue("numOfCell")
@@ -83,12 +83,14 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 
 		t, _ := template.ParseFiles("pages/finish.html")
 		t.Execute(w, res)
+		conn.SetFinish(gameId.Value)
 	} else if count >= 10 {
 		res := result{
 			Result: "Nobody win!",
 		}
 		t, _ := template.ParseFiles("pages/finish.html")
 		t.Execute(w, res)
+		conn.SetFinish(gameId.Value)
 	} else {
 		t, _ := template.ParseFiles("pages/game.html")
 		t.Execute(w, gameData)
