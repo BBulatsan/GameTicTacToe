@@ -92,26 +92,30 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gameId := r.FormValue("gameId")
-	count, _ := conn.GetCount(gameId)
-	if conn.CheckGame(gameId) && count < 2 {
-		ck := &http.Cookie{
-			Name:  "GameId",
-			Value: gameId,
-		}
-		http.SetCookie(w, ck)
-		id, _ := r.Cookie("UserId")
+	id, _ := r.Cookie("UserId")
+	players, _ := conn.GetPlayersCK(gameId)
+	if players.PlayerOId == 0 {
 		err := conn.SetPlayerId(id.Value, gameId)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		conn.SetGameCount(gameId, "+")
+	}
+
+	if conn.CheckGame(gameId) && (strconv.Itoa(players.PlayerOId) == id.Value) {
+		ck := &http.Cookie{
+			Name:  "GameId",
+			Value: gameId,
+		}
+		http.SetCookie(w, ck)
+		http.Redirect(w, r, "/game", 301)
+
 		conn.SetGameStatus(gameId, dbs.Running)
 		gameData, _ := conn.RefreshGameData(gameId)
 		t, _ := template.ParseFiles("pages/game.html")
 		t.Execute(w, gameData)
 	} else {
-		id, _ := r.Cookie("UserId")
+		http.Redirect(w, r, "/", 301)
 		name, _ := conn.GetUserName(id.Value)
 		res := result{Result: name}
 		t, _ := template.ParseFiles("pages/home.html")

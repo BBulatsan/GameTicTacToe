@@ -9,7 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-//CREATE TABLE IF NOT EXISTS games (id INTEGER PRIMARY KEY, status message_text, count_players SMALLINT, player_x_id INTEGER, player_o_id INTEGER);
+//CREATE TABLE IF NOT EXISTS games (id INTEGER PRIMARY KEY, status message_text, player_x_id INTEGER, player_o_id INTEGER);
 //CREATE TABLE IF NOT EXISTS moves (game_id INTEGER, map_of_moves json, who_move message_text, FOREIGN KEY (game_id)  REFERENCES games (id) ON DELETE CASCADE);
 //CREATE TABLE IF NOT EXISTS users ( id  integer constraint user_pk primary key, name text );
 const (
@@ -19,9 +19,10 @@ const (
 )
 
 type games struct {
-	Id           int
-	Status       string
-	CountPlayers int
+	Id        int
+	Status    string
+	PlayerXId int
+	PlayerOId int
 }
 
 type moves struct {
@@ -76,8 +77,8 @@ func (d *DbConn) CreateNewGame(ck string) (*GameData, error) {
 		Eight: "8",
 		Nine:  "9",
 	}
-	statement := "INSERT INTO games (status, count_players, player_x_id) VALUES ($1, $2, $3);"
-	res, err := d.conn.Exec(statement, NewGame, 1, ck)
+	statement := "INSERT INTO games (status, player_x_id) VALUES ($1, $2);"
+	res, err := d.conn.Exec(statement, NewGame, ck)
 	if err != nil {
 		return moveMap, err
 	}
@@ -238,35 +239,16 @@ func (d *DbConn) SetPlayerId(userId string, gameId string) error {
 	return nil
 }
 
-func (d *DbConn) SetGameCount(gameId string, symbol string) error {
-	c, err := d.GetCount(gameId)
+func (d *DbConn) GetPlayersCK(gameId string) (games, error) {
+	game := games{}
+	rows, err := d.conn.Query(fmt.Sprintf("SELECT player_x_id, player_o_id FROM games WHERE id=%s", gameId))
 	if err != nil {
-		return err
-	}
-	if symbol == "-" {
-		c--
-	} else {
-		c++
-	}
-	statement := "UPDATE games SET count_players=$1 WHERE id=$2;"
-	_, err = d.conn.Exec(statement, c, gameId)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (d *DbConn) GetCount(gameId string) (int, error) {
-	var count string
-	rows, err := d.conn.Query(fmt.Sprintf("SELECT count_players FROM games WHERE id=%s", gameId))
-	if err != nil {
-		return 0, err
+		return game, err
 	}
 	defer rows.Close()
 	rows.Next()
-	err = rows.Scan(&count)
-	c, _ := strconv.Atoi(count)
-	return c, nil
+	err = rows.Scan(&game.PlayerXId, &game.PlayerOId)
+	return game, nil
 }
 
 func executeMove(gameData *GameData, move string, symbol string) (*GameData, error) {
