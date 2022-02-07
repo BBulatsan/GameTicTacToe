@@ -39,6 +39,7 @@ type users struct {
 
 type GameData struct {
 	Who    string
+	Symbol string
 	GameId int
 	One    string
 	Two    string
@@ -66,16 +67,16 @@ func (d *DbConn) InitDb() {
 func (d *DbConn) CreateNewGame(ck string) (*GameData, error) {
 	var gameId int
 	moveMap := &GameData{
-		Who:   "X",
-		One:   "1",
-		Two:   "2",
-		Three: "3",
-		Four:  "4",
-		Five:  "5",
-		Six:   "6",
-		Seven: "7",
-		Eight: "8",
-		Nine:  "9",
+		Symbol: "X",
+		One:    "1",
+		Two:    "2",
+		Three:  "3",
+		Four:   "4",
+		Five:   "5",
+		Six:    "6",
+		Seven:  "7",
+		Eight:  "8",
+		Nine:   "9",
 	}
 	statement := "INSERT INTO games (status, player_x_id) VALUES ($1, $2);"
 	res, err := d.conn.Exec(statement, NewGame, ck)
@@ -119,33 +120,30 @@ func (d *DbConn) RefreshGameData(gameId string) (*GameData, error) {
 	return gameData, nil
 }
 
-func (d *DbConn) MakeMove(move string, gameId string) (*GameData, int, error) {
-	gameData := &GameData{}
-	GData, count, err := d.getGameData(gameId)
+func (d *DbConn) MakeMove(move string, gameId string) (*GameData, bool, int, error) {
+	var unique bool
+	gameData, count, err := d.GetGameData(gameId)
 	if err != nil {
-		return gameData, count, err
+		return gameData, unique, count, err
 	}
-	err = json.Unmarshal([]byte(GData), gameData)
-	if err != nil {
-		return gameData, count, err
-	}
-	if gameData.Who == "X" {
+
+	if gameData.Symbol == "X" {
 		gameData, err = executeMove(gameData, move, "X")
 		if err != nil {
-			return gameData, count, nil
+			return gameData, unique, count, nil
 		}
-		gameData.Who = "O"
+		gameData.Symbol = "O"
 	} else {
 		gameData, err = executeMove(gameData, move, "O")
 		if err != nil {
-			return gameData, count, nil
+			return gameData, unique, count, nil
 		}
-		gameData.Who = "X"
+		gameData.Symbol = "X"
 	}
 
 	gd, err := json.Marshal(gameData)
 	if err != nil {
-		return gameData, count, err
+		return gameData, unique, count, err
 	}
 
 	statement := "UPDATE moves SET game_data=$1, count_move=$2 WHERE game_id=$3;"
@@ -153,26 +151,31 @@ func (d *DbConn) MakeMove(move string, gameId string) (*GameData, int, error) {
 	_, err = d.conn.Exec(statement, gd, count, gameId)
 	if err != nil {
 		count--
-		return gameData, count, err
+		return gameData, unique, count, err
 	}
-
-	return gameData, count, nil
+	unique = true
+	return gameData, unique, count, nil
 }
 
-func (d *DbConn) getGameData(gameId string) (string, int, error) {
+func (d *DbConn) GetGameData(gameId string) (*GameData, int, error) {
 	move := &moves{}
+	gameData := &GameData{}
 	rows, err := d.conn.Query(fmt.Sprintf("SELECT game_data, count_move FROM moves WHERE game_id=%s", gameId))
 	if err != nil {
-		return move.GameData, move.CountMove, err
+		return gameData, move.CountMove, err
 	}
 	defer rows.Close()
 	rows.Next()
 	err = rows.Scan(&move.GameData, &move.CountMove)
 	if err != nil {
-		return move.GameData, move.CountMove, err
+		return gameData, move.CountMove, err
+	}
+	err = json.Unmarshal([]byte(move.GameData), gameData)
+	if err != nil {
+		return gameData, move.CountMove, err
 	}
 
-	return move.GameData, move.CountMove, nil
+	return gameData, move.CountMove, nil
 }
 
 func (d *DbConn) SetGameStatus(gameId string, status string) error {

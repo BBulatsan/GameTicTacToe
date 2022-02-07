@@ -80,6 +80,7 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		gameData, _ = conn.RefreshGameData(gi.Value)
 	}
+	gameData.Who = "You can make move!"
 	t, _ := template.ParseFiles("pages/game.html")
 	t.Execute(w, gameData)
 }
@@ -96,6 +97,8 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	players, _ := conn.GetPlayersCK(gameId)
 	if players.PlayerOId == 0 {
 		err := conn.SetPlayerId(id.Value, gameId)
+		idO, _ := strconv.Atoi(id.Value)
+		players.PlayerOId = idO
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -136,42 +139,89 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 	}
-	gameData, count, err := conn.MakeMove(numOfCell, gameId.Value)
+
+	data, _, err := conn.GetGameData(gameId.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	finish, win, err := game.CheckWin(gameData)
+	players, err := conn.GetPlayersCK(gameId.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if finish {
-		res := result{
-			Result: fmt.Sprintf("Winer is %s", win),
+	id, _ := r.Cookie("UserId")
+	ck, _ := strconv.Atoi(id.Value)
+	if (data.Symbol == "X" && (players.PlayerXId == ck)) || (data.Symbol == "O" && (players.PlayerOId == ck)) {
+		gameData, _, count, err := conn.MakeMove(numOfCell, gameId.Value) // you can use for unique
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		ck := &http.Cookie{
-			Name:   "GameId",
-			MaxAge: -1,
+		finish, win, err := game.CheckWin(gameData)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		http.SetCookie(w, ck)
-		t, _ := template.ParseFiles("pages/finish.html")
-		t.Execute(w, res)
-		conn.SetGameStatus(gameId.Value, dbs.Finished)
-	} else if count >= 10 {
-		res := result{
-			Result: "Nobody win!",
+		if finish {
+			var name string
+			if win == "X" {
+				name, _ = conn.GetUserName(strconv.Itoa(players.PlayerXId))
+			} else {
+				name, _ = conn.GetUserName(strconv.Itoa(players.PlayerOId))
+			}
+			res := result{
+				Result: fmt.Sprintf("Winer is %s", name),
+			}
+			ck := &http.Cookie{
+				Name:   "GameId",
+				MaxAge: -1,
+			}
+			http.SetCookie(w, ck)
+			t, _ := template.ParseFiles("pages/finish.html")
+			t.Execute(w, res)
+			conn.SetGameStatus(gameId.Value, dbs.Finished)
+		} else if count >= 10 {
+			res := result{
+				Result: "Nobody win!",
+			}
+			ck := &http.Cookie{
+				Name:   "GameId",
+				MaxAge: -1,
+			}
+			http.SetCookie(w, ck)
+			t, _ := template.ParseFiles("pages/finish.html")
+			t.Execute(w, res)
+			conn.SetGameStatus(gameId.Value, dbs.Finished)
+		} else {
+			// checking if a move has been made?
+			if data.Symbol != gameData.Symbol {
+				if gameData.Symbol == "O" {
+					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
+					gameData.Who = fmt.Sprintf("%s making move!", name)
+					gameData.Symbol = "X"
+				} else {
+					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+					gameData.Who = fmt.Sprintf("%s making move!", name)
+					gameData.Symbol = "O"
+				}
+			} else {
+				gameData.Who = "You can make move!"
+			}
+			t, _ := template.ParseFiles("pages/game.html")
+			t.Execute(w, gameData)
 		}
-		ck := &http.Cookie{
-			Name:   "GameId",
-			MaxAge: -1,
-		}
-		http.SetCookie(w, ck)
-		t, _ := template.ParseFiles("pages/finish.html")
-		t.Execute(w, res)
-		conn.SetGameStatus(gameId.Value, dbs.Finished)
 	} else {
+		if data.Symbol == "O" {
+			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
+			data.Who = fmt.Sprintf("%s making move!", name)
+			data.Symbol = "X"
+		} else {
+			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+			data.Who = fmt.Sprintf("%s making move!", name)
+			data.Symbol = "O"
+		}
 		t, _ := template.ParseFiles("pages/game.html")
-		t.Execute(w, gameData)
+		t.Execute(w, data)
 	}
 }
