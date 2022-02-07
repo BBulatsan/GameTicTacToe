@@ -105,7 +105,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if conn.CheckGame(gameId) && (strconv.Itoa(players.PlayerOId) == id.Value) {
+	if conn.CheckGame(gameId) && ((strconv.Itoa(players.PlayerOId) == id.Value) || (strconv.Itoa(players.PlayerXId) == id.Value)) {
 		ck := &http.Cookie{
 			Name:  "GameId",
 			Value: gameId,
@@ -137,7 +137,9 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 
 	gameId, err := r.Cookie("GameId")
 	if err != nil {
+		http.Redirect(w, r, "/", 301)
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
 	}
 
 	data, _, err := conn.GetGameData(gameId.Value)
@@ -171,7 +173,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 				name, _ = conn.GetUserName(strconv.Itoa(players.PlayerOId))
 			}
 			res := result{
-				Result: fmt.Sprintf("Winer is %s", name),
+				Result: fmt.Sprintf("Winner is %s", name),
 			}
 			ck := &http.Cookie{
 				Name:   "GameId",
@@ -197,11 +199,11 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 			// checking if a move has been made?
 			if data.Symbol != gameData.Symbol {
 				if gameData.Symbol == "O" {
-					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
-					gameData.Who = fmt.Sprintf("%s making move!", name)
+					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+					gameData.Who = fmt.Sprintf("%s is making move!", name)
 					gameData.Symbol = "X"
 				} else {
-					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
 					gameData.Who = fmt.Sprintf("%s making move!", name)
 					gameData.Symbol = "O"
 				}
@@ -213,12 +215,12 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if data.Symbol == "O" {
-			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
-			data.Who = fmt.Sprintf("%s making move!", name)
+			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+			data.Who = fmt.Sprintf("%s is making move!", name)
 			data.Symbol = "X"
 		} else {
-			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
-			data.Who = fmt.Sprintf("%s making move!", name)
+			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
+			data.Who = fmt.Sprintf("%s is making move!", name)
 			data.Symbol = "O"
 		}
 		t, _ := template.ParseFiles("pages/game.html")
