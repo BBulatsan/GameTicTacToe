@@ -49,18 +49,18 @@ func MakeMove(d dbs.DbConn, move string, gameId string) (*dbs.GameData, bool, in
 		return gameData, unique, count, err
 	}
 
-	if gameData.Symbol == "X" {
-		gameData, err = executeMove(gameData, move, "X")
+	if gameData.Symbol == dbs.X {
+		gameData, err = executeMove(gameData, move, dbs.X)
 		if err != nil {
 			return gameData, unique, count, nil
 		}
-		gameData.Symbol = "O"
+		gameData.Symbol = dbs.O
 	} else {
-		gameData, err = executeMove(gameData, move, "O")
+		gameData, err = executeMove(gameData, move, dbs.O)
 		if err != nil {
 			return gameData, unique, count, nil
 		}
-		gameData.Symbol = "X"
+		gameData.Symbol = dbs.X
 	}
 
 	gd, err := json.Marshal(gameData)

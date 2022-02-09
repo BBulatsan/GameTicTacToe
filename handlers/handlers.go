@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -91,19 +92,52 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	gameData := &dbs.GameData{}
+	gameData := &dbs.GameData{
+		Symbol: "X",
+		One:    "1",
+		Two:    "2",
+		Three:  "3",
+		Four:   "4",
+		Five:   "5",
+		Six:    "6",
+		Seven:  "7",
+		Eight:  "8",
+		Nine:   "9",
+	}
 	gi, err := r.Cookie(gameID)
 	if err != nil {
-		id, _ := r.Cookie(userID)
-		gameData, err = conn.CreateNewGame(id.Value)
+		gId, err := conn.CreateGame()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		id, _ := r.Cookie(userID)
+		gameId := strconv.Itoa(gId)
 
+		err = conn.SetPlayerId(id.Value, gameId, gameData.Symbol)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		gameData.GameId = gId
+		gd, err := json.Marshal(gameData)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		err = conn.CreateMove(gd, 1, gameId)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		//gameData, err = conn.CreateNewGame(id.Value)
+		//if err != nil {
+		//	http.Error(w, err.Error(), http.StatusInternalServerError)
+		//	return
+		//}
 		ck := &http.Cookie{
 			Name:  gameID,
-			Value: strconv.Itoa(gameData.GameId),
+			Value: gameId,
 		}
 		http.SetCookie(w, ck)
 		//TODO wait to second player
@@ -153,7 +187,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	id, _ := r.Cookie(userID)
 	players, _ := conn.GetPlayersCK(gameId)
 	if players.PlayerOId == 0 {
-		err = conn.SetPlayerId(id.Value, gameId)
+		err = conn.SetPlayerId(id.Value, gameId, dbs.O)
 		idO, _ := strconv.Atoi(id.Value)
 		players.PlayerOId = idO
 		if err != nil {
