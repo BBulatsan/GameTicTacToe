@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
-	"time"
 
 	"GameTicTacToe/dbs"
 	"GameTicTacToe/game"
@@ -38,10 +37,9 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := r.Cookie(userID)
 	if err != nil {
 		ck = &http.Cookie{
-			Name:    userID,
-			Value:   game.GenUsedCk(),
-			Expires: time.Now(),
-			MaxAge:  9000,
+			Name:   userID,
+			Value:  game.GenUsedCk(),
+			MaxAge: 2147483647,
 		}
 		http.SetCookie(w, ck)
 		t, _ := template.ParseFiles("pages/registration.html")
@@ -92,20 +90,21 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	gameData := &dbs.GameData{
-		Symbol: "X",
-		One:    "1",
-		Two:    "2",
-		Three:  "3",
-		Four:   "4",
-		Five:   "5",
-		Six:    "6",
-		Seven:  "7",
-		Eight:  "8",
-		Nine:   "9",
-	}
-	gi, err := r.Cookie(gameID)
+	_, err = r.Cookie(gameID)
 	if err != nil {
+		gameData := &dbs.GameData{
+			Symbol: game.GenSymbol(),
+			One:    "1",
+			Two:    "2",
+			Three:  "3",
+			Four:   "4",
+			Five:   "5",
+			Six:    "6",
+			Seven:  "7",
+			Eight:  "8",
+			Nine:   "9",
+		}
+
 		gId, err := conn.CreateGame()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -130,25 +129,17 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		//gameData, err = conn.CreateNewGame(id.Value)
-		//if err != nil {
-		//	http.Error(w, err.Error(), http.StatusInternalServerError)
-		//	return
-		//}
+
 		ck := &http.Cookie{
 			Name:  gameID,
 			Value: gameId,
 		}
 		http.SetCookie(w, ck)
+		http.Redirect(w, r, "/game", http.StatusMovedPermanently)
 		//TODO wait to second player
+		return
 	} else {
-		gameData, _ = conn.RefreshGameData(gi.Value)
-	}
-	gameData.Who = "You can make move!"
-	t, _ := template.ParseFiles("pages/game.html")
-	err = t.Execute(w, gameData)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Redirect(w, r, "/connect", http.StatusMovedPermanently)
 		return
 	}
 }
@@ -194,6 +185,14 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	} else if players.PlayerXId == 0 {
+		err = conn.SetPlayerId(id.Value, gameId, dbs.X)
+		idX, _ := strconv.Atoi(id.Value)
+		players.PlayerXId = idX
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if conn.CheckGame(gameId) && ((strconv.Itoa(players.PlayerOId) == id.Value) || (strconv.Itoa(players.PlayerXId) == id.Value)) {
@@ -202,7 +201,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 			Value: gameId,
 		}
 		http.SetCookie(w, ck)
-		http.Redirect(w, r, "/game", 301)
+		http.Redirect(w, r, "/game", http.StatusMovedPermanently)
 
 		err = conn.SetGameStatus(gameId, dbs.Running)
 		if err != nil {
@@ -246,7 +245,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 
 	gameId, err := r.Cookie(gameID)
 	if err != nil {
-		http.Redirect(w, r, "/", 301)
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -265,7 +264,8 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 
 	// checking who make move
 	if (data.Symbol == "X" && (players.PlayerXId == ck)) || (data.Symbol == "O" && (players.PlayerOId == ck)) {
-		gameData, _, count, err := game.MakeMove(conn, numOfCell, gameId.Value) // you can use for unique
+		g := game.NewGame(conn)
+		gameData, _, count, err := g.MakeMove(numOfCell, gameId.Value) // you can use for unique
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

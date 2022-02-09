@@ -10,6 +10,48 @@ import (
 	"GameTicTacToe/dbs"
 )
 
+type Game struct {
+	conn dbs.DbConn
+}
+
+func NewGame(conn dbs.DbConn) Game {
+	return Game{conn: conn}
+}
+
+func (g *Game) MakeMove(move string, gameId string) (*dbs.GameData, bool, int, error) {
+	var unique bool
+	gameData, count, err := g.conn.GetGameData(gameId)
+	if err != nil {
+		return gameData, unique, count, err
+	}
+
+	if gameData.Symbol == dbs.X {
+		gameData, err = executeMove(gameData, move, dbs.X)
+		if err != nil {
+			return gameData, unique, count, nil
+		}
+		gameData.Symbol = dbs.O
+	} else {
+		gameData, err = executeMove(gameData, move, dbs.O)
+		if err != nil {
+			return gameData, unique, count, nil
+		}
+		gameData.Symbol = dbs.X
+	}
+
+	gd, err := json.Marshal(gameData)
+	if err != nil {
+		return gameData, unique, count, err
+	}
+	count++
+	err = g.conn.SetMove(gd, count, gameId)
+	if err != nil {
+		return gameData, unique, count - 1, err
+	}
+	unique = true
+	return gameData, unique, count, nil
+}
+
 func CheckWin(data *dbs.GameData) (bool, string, error) {
 	// horizontally
 	if data.One == data.Two && data.Two == data.Three {
@@ -40,40 +82,6 @@ func CheckWin(data *dbs.GameData) (bool, string, error) {
 	}
 
 	return false, "", nil
-}
-
-func MakeMove(d dbs.DbConn, move string, gameId string) (*dbs.GameData, bool, int, error) {
-	var unique bool
-	gameData, count, err := d.GetGameData(gameId)
-	if err != nil {
-		return gameData, unique, count, err
-	}
-
-	if gameData.Symbol == dbs.X {
-		gameData, err = executeMove(gameData, move, dbs.X)
-		if err != nil {
-			return gameData, unique, count, nil
-		}
-		gameData.Symbol = dbs.O
-	} else {
-		gameData, err = executeMove(gameData, move, dbs.O)
-		if err != nil {
-			return gameData, unique, count, nil
-		}
-		gameData.Symbol = dbs.X
-	}
-
-	gd, err := json.Marshal(gameData)
-	if err != nil {
-		return gameData, unique, count, err
-	}
-	count++
-	err = d.SetMove(gd, count, gameId)
-	if err != nil {
-		return gameData, unique, count - 1, err
-	}
-	unique = true
-	return gameData, unique, count, nil
 }
 
 func executeMove(gameData *dbs.GameData, move string, symbol string) (*dbs.GameData, error) {
@@ -119,4 +127,10 @@ func executeMove(gameData *dbs.GameData, move string, symbol string) (*dbs.GameD
 func GenUsedCk() string {
 	rand.Seed(time.Now().UnixNano())
 	return strconv.Itoa(rand.Int())
+}
+
+func GenSymbol() string {
+	rand.Seed(time.Now().UTC().UnixNano())
+	chars := []rune("XO")
+	return string(chars[rand.Intn(len(chars))])
 }
