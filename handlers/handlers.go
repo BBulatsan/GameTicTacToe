@@ -165,7 +165,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if status == dbs.Finished {
 		res := result{
-			Result: "This game have been finish!",
+			Result: "This game has been finished!",
 		}
 		t, _ := template.ParseFiles("pages/finish.html")
 		err = t.Execute(w, res)
@@ -175,20 +175,20 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// This part check players in game and create a pair of players.
 	id, _ := r.Cookie(userID)
 	players, _ := conn.GetPlayersCK(gameId)
-	if players.PlayerOId == 0 {
+	idValue, _ := strconv.Atoi(id.Value)
+	if players.PlayerOId == 0 && players.PlayerXId != idValue {
 		err = conn.SetPlayerId(id.Value, gameId, dbs.O)
-		idO, _ := strconv.Atoi(id.Value)
-		players.PlayerOId = idO
+		players.PlayerOId = idValue
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-	} else if players.PlayerXId == 0 {
+	} else if players.PlayerXId == 0 && players.PlayerOId != idValue {
 		err = conn.SetPlayerId(id.Value, gameId, dbs.X)
-		idX, _ := strconv.Atoi(id.Value)
-		players.PlayerXId = idX
+		players.PlayerXId = idValue
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
