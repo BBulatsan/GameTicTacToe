@@ -15,20 +15,17 @@ type result struct {
 	Result string
 }
 
+type Handler struct {
+	Conn dbs.DbConn
+}
+
 const (
 	userID = "user_id"
 	gameID = "game_id"
 )
 
 // HomeHandler use for present first page and registration.
-
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	conn := dbs.DbConn{}
-	err := conn.InitDb()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+func (h Handler) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	ck := &http.Cookie{
 		Name:   gameID,
 		MaxAge: -1,
@@ -48,7 +45,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		_, err = conn.CreateUser(ck.Value)
+		_, err = h.Conn.CreateUser(ck.Value)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -61,7 +58,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		name := r.FormValue("name")
 		if name != "" {
-			err = conn.AddName(id.Value, name)
+			err = h.Conn.AddName(id.Value, name)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -69,7 +66,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if name == "" {
-			name, _ = conn.GetUserName(id.Value)
+			name, _ = h.Conn.GetUserName(id.Value)
 		}
 		res := result{Result: name}
 		t, _ := template.ParseFiles("pages/home.html")
@@ -82,15 +79,8 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartHandler use for create new game.
-
-func StartHandler(w http.ResponseWriter, r *http.Request) {
-	conn := dbs.DbConn{}
-	err := conn.InitDb()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	_, err = r.Cookie(gameID)
+func (h Handler) StartHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := r.Cookie(gameID)
 	if err != nil {
 		gameData := &dbs.GameData{
 			Symbol: game.GenSymbol(),
@@ -105,7 +95,7 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 			Nine:   "9",
 		}
 
-		gId, err := conn.CreateGame()
+		gId, err := h.Conn.CreateGame()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -113,7 +103,7 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 		id, _ := r.Cookie(userID)
 		gameId := strconv.Itoa(gId)
 
-		err = conn.SetPlayerId(id.Value, gameId, gameData.Symbol)
+		err = h.Conn.SetPlayerId(id.Value, gameId, gameData.Symbol)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -124,7 +114,7 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		err = conn.CreateMove(gd, 1, gameId)
+		err = h.Conn.CreateMove(gd, 1, gameId)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -145,20 +135,13 @@ func StartHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // ConnectHandler use for connect to new games.
-
-func ConnectHandler(w http.ResponseWriter, r *http.Request) {
-	conn := dbs.DbConn{}
-	err := conn.InitDb()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err = r.ParseForm(); err != nil {
+func (h Handler) ConnectHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	gameId := r.FormValue(gameID)
-	status, err := conn.GetGameStatus(gameId)
+	status, err := h.Conn.GetGameStatus(gameId)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -177,17 +160,17 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// This part check players in game and create a pair of players.
 	id, _ := r.Cookie(userID)
-	players, _ := conn.GetPlayersCK(gameId)
+	players, _ := h.Conn.GetPlayersCK(gameId)
 	idValue, _ := strconv.Atoi(id.Value)
 	if players.PlayerOId == 0 && players.PlayerXId != idValue {
-		err = conn.SetPlayerId(id.Value, gameId, dbs.O)
+		err = h.Conn.SetPlayerId(id.Value, gameId, dbs.O)
 		players.PlayerOId = idValue
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	} else if players.PlayerXId == 0 && players.PlayerOId != idValue {
-		err = conn.SetPlayerId(id.Value, gameId, dbs.X)
+		err = h.Conn.SetPlayerId(id.Value, gameId, dbs.X)
 		players.PlayerXId = idValue
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -195,7 +178,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if conn.CheckGame(gameId) && ((strconv.Itoa(players.PlayerOId) == id.Value) || (strconv.Itoa(players.PlayerXId) == id.Value)) {
+	if h.Conn.CheckGame(gameId) && ((strconv.Itoa(players.PlayerOId) == id.Value) || (strconv.Itoa(players.PlayerXId) == id.Value)) {
 		ck := &http.Cookie{
 			Name:  gameID,
 			Value: gameId,
@@ -203,12 +186,12 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, ck)
 		http.Redirect(w, r, "/game", http.StatusMovedPermanently)
 
-		err = conn.SetGameStatus(gameId, dbs.Running)
+		err = h.Conn.SetGameStatus(gameId, dbs.Running)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		gameData, _ := conn.RefreshGameData(gameId)
+		gameData, _ := h.Conn.RefreshGameData(gameId)
 		t, _ := template.ParseFiles("pages/game.html")
 		err = t.Execute(w, gameData)
 		if err != nil {
@@ -217,7 +200,7 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		http.Redirect(w, r, "/", 301)
-		name, _ := conn.GetUserName(id.Value)
+		name, _ := h.Conn.GetUserName(id.Value)
 		res := result{Result: name}
 		t, _ := template.ParseFiles("pages/home.html")
 		err = t.Execute(w, res)
@@ -229,15 +212,8 @@ func ConnectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //GameHandler use for present game and implement main logic.
-
-func GameHandler(w http.ResponseWriter, r *http.Request) {
-	conn := dbs.DbConn{}
-	err := conn.InitDb()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if err = r.ParseForm(); err != nil {
+func (h Handler) GameHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -249,12 +225,12 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	data, _, err := conn.GetGameData(gameId.Value)
+	data, _, err := h.Conn.GetGameData(gameId.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	players, err := conn.GetPlayersCK(gameId.Value)
+	players, err := h.Conn.GetPlayersCK(gameId.Value)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -264,7 +240,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 
 	// checking who make move
 	if (data.Symbol == "X" && (players.PlayerXId == ck)) || (data.Symbol == "O" && (players.PlayerOId == ck)) {
-		g := game.NewGame(conn)
+		g := game.NewGame(h.Conn)
 		gameData, _, count, err := g.MakeMove(numOfCell, gameId.Value) // you can use for unique
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -278,9 +254,9 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 		if finish {
 			var name string
 			if win == "X" {
-				name, _ = conn.GetUserName(strconv.Itoa(players.PlayerXId))
+				name, _ = h.Conn.GetUserName(strconv.Itoa(players.PlayerXId))
 			} else {
-				name, _ = conn.GetUserName(strconv.Itoa(players.PlayerOId))
+				name, _ = h.Conn.GetUserName(strconv.Itoa(players.PlayerOId))
 			}
 			res := result{
 				Result: fmt.Sprintf("Winner is %s", name),
@@ -296,7 +272,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			err = conn.SetGameStatus(gameId.Value, dbs.Finished)
+			err = h.Conn.SetGameStatus(gameId.Value, dbs.Finished)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -316,7 +292,7 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			err = conn.SetGameStatus(gameId.Value, dbs.Finished)
+			err = h.Conn.SetGameStatus(gameId.Value, dbs.Finished)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -325,11 +301,11 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 			// checking if a move has been made?
 			if data.Symbol != gameData.Symbol {
 				if gameData.Symbol == "O" {
-					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+					name, _ := h.Conn.GetUserName(strconv.Itoa(players.PlayerOId))
 					gameData.Who = fmt.Sprintf("%s is making move!", name)
 					gameData.Symbol = "X"
 				} else {
-					name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
+					name, _ := h.Conn.GetUserName(strconv.Itoa(players.PlayerXId))
 					gameData.Who = fmt.Sprintf("%s making move!", name)
 					gameData.Symbol = "O"
 				}
@@ -345,11 +321,11 @@ func GameHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if data.Symbol == "O" {
-			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerOId))
+			name, _ := h.Conn.GetUserName(strconv.Itoa(players.PlayerOId))
 			data.Who = fmt.Sprintf("%s is making move!", name)
 			data.Symbol = "X"
 		} else {
-			name, _ := conn.GetUserName(strconv.Itoa(players.PlayerXId))
+			name, _ := h.Conn.GetUserName(strconv.Itoa(players.PlayerXId))
 			data.Who = fmt.Sprintf("%s is making move!", name)
 			data.Symbol = "O"
 		}

@@ -2,6 +2,7 @@ package dbs
 
 import (
 	"database/sql"
+	"log"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -21,4 +22,11 @@ func (d *DbConn) InitDb() error {
 	}
 	d.conn = db
 	return nil
+}
+
+func (d *DbConn) CloseDb() {
+	err := d.conn.Close()
+	if err != nil {
+		log.Fatal("Close connect to DB with Error", err)
+	}
 }
